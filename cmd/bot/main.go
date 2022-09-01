@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bot_money/config"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -16,8 +17,9 @@ type wallet map[string]float64
 var db = map[int64]wallet{}
 
 func main() {
+	var conf = config.GetConfiguration()
 
-	bot, err := tgbotapi.NewBotAPI("5407561453:AAE3topXqyAy-zZ8eIJkD0uZkNBcJlaXfUI")
+	bot, err := tgbotapi.NewBotAPI(conf.BotToken)
 	if err != nil {
 		log.Panic(err)
 	}
