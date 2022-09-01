@@ -2,10 +2,14 @@ package main
 
 import (
 	"bot_money/config"
+	"bot_money/internal/database"
 	"encoding/json"
 	"fmt"
+	"github.com/upper/db/v4"
+	"github.com/upper/db/v4/adapter/postgresql"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 
@@ -14,7 +18,7 @@ import (
 
 type wallet map[string]float64
 
-var db = map[int64]wallet{}
+var dataBase = map[int64]wallet{}
 
 func main() {
 	var conf = config.GetConfiguration()
@@ -22,6 +26,36 @@ func main() {
 	bot, err := tgbotapi.NewBotAPI(conf.BotToken)
 	if err != nil {
 		log.Panic(err)
+	}
+
+	err = database.Migrate(conf)
+	if err != nil {
+		log.Fatalf("Unable to apply migration: %q\n", err)
+	}
+
+	ses, err := postgresql.Open(
+		postgresql.ConnectionURL{
+			User:     conf.DatabaseUser,
+			Host:     conf.DatabaseHost,
+			Password: conf.DatabasePassword,
+			Database: conf.DatabaseName,
+		})
+	if err != nil {
+		log.Fatalf("Unable to create new DB session %q\n: ", err)
+	}
+	defer func(ses db.Session) {
+		err = ses.Close()
+		if err != nil {
+
+		}
+	}(ses)
+
+	_, err = os.Stat(conf.FileStorageLocation)
+	if err != nil {
+		err = os.Mkdir(conf.FileStorageLocation, os.ModePerm)
+	}
+	if err != nil {
+		log.Fatalf("Storage folder is not available %s", err)
 	}
 
 	bot.Debug = true
@@ -49,12 +83,12 @@ func main() {
 					bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, "error add"))
 				}
 
-				if _, ok := db[update.Message.Chat.ID]; !ok {
-					db[update.Message.Chat.ID] = wallet{}
+				if _, ok := dataBase[update.Message.Chat.ID]; !ok {
+					dataBase[update.Message.Chat.ID] = wallet{}
 				}
-				db[update.Message.Chat.ID][command[1]] += amount
+				dataBase[update.Message.Chat.ID][command[1]] += amount
 
-				balance := fmt.Sprintf("%f", db[update.Message.Chat.ID][command[1]])
+				balance := fmt.Sprintf("%f", dataBase[update.Message.Chat.ID][command[1]])
 				bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, balance))
 			case "Sub":
 				if len(command) != 3 {
@@ -65,19 +99,19 @@ func main() {
 					bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, "error add"))
 				}
 
-				if _, ok := db[update.Message.Chat.ID]; !ok {
+				if _, ok := dataBase[update.Message.Chat.ID]; !ok {
 					continue
 				}
-				db[update.Message.Chat.ID][command[1]] -= amount
+				dataBase[update.Message.Chat.ID][command[1]] -= amount
 
-				balance := fmt.Sprintf("%f", db[update.Message.Chat.ID][command[1]])
+				balance := fmt.Sprintf("%f", dataBase[update.Message.Chat.ID][command[1]])
 				bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, balance))
 			case "Delete":
-				delete(db[update.Message.Chat.ID], command[1])
+				delete(dataBase[update.Message.Chat.ID], command[1])
 			case "Show":
 				msg := ""
 				var sum float64
-				for key, value := range db[update.Message.Chat.ID] {
+				for key, value := range dataBase[update.Message.Chat.ID] {
 					price, _ := getPrice(key)
 					valPrice := price * value
 					sum += valPrice

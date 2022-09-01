@@ -16,7 +16,7 @@ type Configuration struct {
 func GetConfiguration() *Configuration {
 	migrationLocation, set := os.LookupEnv("MIGRATION_LOCATION")
 	if !set {
-		migrationLocation = "migration"
+		migrationLocation = "migrations"
 	}
 
 	migratioToVersion, set := os.LookupEnv("MIGRATE")
