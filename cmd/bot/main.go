@@ -162,7 +162,7 @@ func main() {
 				dataBase[update.Message.Chat.ID][command[0]] = y2
 				coordinateY2 := fmt.Sprintf("Y2: %f", dataBase[update.Message.Chat.ID][command[0]])
 				bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, coordinateY2))
-			case "Порахувати":
+			case "/count":
 				var co coord
 				msg := ""
 				for key, value := range dataBase[update.Message.Chat.ID] {
