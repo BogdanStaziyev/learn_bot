@@ -3,12 +3,11 @@ package main
 import (
 	"bot_money/config"
 	"bot_money/internal/database"
-	"encoding/json"
 	"fmt"
 	"github.com/upper/db/v4"
 	"github.com/upper/db/v4/adapter/postgresql"
 	"log"
-	"net/http"
+	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -16,9 +15,9 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-type wallet map[string]float64
+type coordinate map[string]float64
 
-var dataBase = map[int64]wallet{}
+var dataBase = map[int64]coordinate{}
 
 func main() {
 	var conf = config.GetConfiguration()
@@ -67,58 +66,120 @@ func main() {
 
 	updates := bot.GetUpdatesChan(u)
 
+	type coord struct {
+		X1 float64
+		Y1 float64
+		X2 float64
+		Y2 float64
+	}
+
 	for update := range updates {
 		if update.Message != nil { // If we got a message
 			log.Printf("[%s] %s", update.Message.From.UserName, update.Message.Text)
 
 			command := strings.Split(update.Message.Text, " ")
 
+			var upname = update.Message.Chat.UserName
+
+			var HelloMessage = fmt.Sprintf("Привіт %s. Радий тебе вітати в своєму боті. Тут ти зможеш порахувати зворотню геодезичну задачу не виходячи з телеграму, тобі лише потрібно ввести координати в форматі: X1 252525.252 і так далі, окремими повідомленнями. Я збережу іх та за командою 'Порахувати' зроблю все за тебе", upname)
+
 			switch command[0] {
-			case "Add":
-				if len(command) != 3 {
-					bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, " money"))
-				}
-				amount, err := strconv.ParseFloat(command[2], 64)
-				if err != nil {
-					bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, "error add"))
-				}
-
-				if _, ok := dataBase[update.Message.Chat.ID]; !ok {
-					dataBase[update.Message.Chat.ID] = wallet{}
-				}
-				dataBase[update.Message.Chat.ID][command[1]] += amount
-
-				balance := fmt.Sprintf("%f", dataBase[update.Message.Chat.ID][command[1]])
-				bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, balance))
-			case "Sub":
-				if len(command) != 3 {
-					bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, "error money"))
-				}
-				amount, err := strconv.ParseFloat(command[2], 64)
-				if err != nil {
-					bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, "error add"))
-				}
-
-				if _, ok := dataBase[update.Message.Chat.ID]; !ok {
+			case "/start":
+				if len(command) != 1 {
+					_, _ = bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, "error not found command"))
 					continue
 				}
-				dataBase[update.Message.Chat.ID][command[1]] -= amount
+				_, _ = bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, HelloMessage))
 
-				balance := fmt.Sprintf("%f", dataBase[update.Message.Chat.ID][command[1]])
-				bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, balance))
-			case "Delete":
-				delete(dataBase[update.Message.Chat.ID], command[1])
-			case "Show":
-				msg := ""
-				var sum float64
-				for key, value := range dataBase[update.Message.Chat.ID] {
-					price, _ := getPrice(key)
-					valPrice := price * value
-					sum += valPrice
-					msg += fmt.Sprintf("%s : %f, %f \n", key, value, valPrice)
+			case "X1":
+				if len(command) != 2 {
+					_, _ = bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, "error not enough arguments"))
+					continue
+				}
+				x1, err := strconv.ParseFloat(command[1], 64)
+				if err != nil {
+					_, _ = bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, "error add"))
+					continue
 				}
 
-				msg += fmt.Sprintf("total price: %f", sum)
+				if _, ok := dataBase[update.Message.Chat.ID]; !ok {
+					dataBase[update.Message.Chat.ID] = coordinate{}
+				}
+				dataBase[update.Message.Chat.ID][command[0]] = x1
+
+				coordinateX1 := fmt.Sprintf("X1: %f", dataBase[update.Message.Chat.ID][command[0]])
+				bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, coordinateX1))
+			case "Y1":
+				if len(command) != 2 {
+					bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, "error not enough arguments"))
+					continue
+				}
+				y1, err := strconv.ParseFloat(command[1], 64)
+				if err != nil {
+					bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, "error add"))
+					continue
+				}
+
+				if _, ok := dataBase[update.Message.Chat.ID]; !ok {
+					dataBase[update.Message.Chat.ID] = coordinate{}
+				}
+				dataBase[update.Message.Chat.ID][command[0]] = y1
+
+				coordinateY1 := fmt.Sprintf("Y1: %f", dataBase[update.Message.Chat.ID][command[0]])
+				bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, coordinateY1))
+			case "X2":
+				if len(command) != 2 {
+					bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, "error not enough arguments"))
+					continue
+				}
+				x2, err := strconv.ParseFloat(command[1], 64)
+				if err != nil {
+					bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, "error add"))
+					continue
+				}
+
+				if _, ok := dataBase[update.Message.Chat.ID]; !ok {
+					dataBase[update.Message.Chat.ID] = coordinate{}
+				}
+				dataBase[update.Message.Chat.ID][command[0]] = x2
+
+				coordinateX2 := fmt.Sprintf("X2: %f", dataBase[update.Message.Chat.ID][command[0]])
+				bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, coordinateX2))
+			case "Y2":
+				if len(command) != 2 {
+					bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, "error not enough arguments"))
+					continue
+				}
+				y2, err := strconv.ParseFloat(command[1], 64)
+				if err != nil {
+					bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, "error add"))
+					continue
+				}
+
+				if _, ok := dataBase[update.Message.Chat.ID]; !ok {
+					dataBase[update.Message.Chat.ID] = coordinate{}
+				}
+				dataBase[update.Message.Chat.ID][command[0]] = y2
+				coordinateY2 := fmt.Sprintf("Y2: %f", dataBase[update.Message.Chat.ID][command[0]])
+				bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, coordinateY2))
+			case "Порахувати":
+				var co coord
+				msg := ""
+				for key, value := range dataBase[update.Message.Chat.ID] {
+					switch key {
+					case "X1":
+						co.X1 = value
+					case "X2":
+						co.X2 = value
+					case "Y1":
+						co.Y1 = value
+					case "Y2":
+						co.Y2 = value
+					}
+				}
+
+				g, m, s := atanNumber(co.X1, co.Y1, co.X2, co.Y2)
+				msg += fmt.Sprintf("Координати для перевірки:\nX1: %f Y1: %f \nX2: %f Y2: %f\nРезультат обчислення зворотньої геодезичної задачі %d° %d′ %d″", co.X1, co.Y1, co.X2, co.Y2, g, m, s)
 				bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, msg))
 			default:
 				bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, "Unknown command"))
@@ -127,20 +188,29 @@ func main() {
 	}
 }
 
-type Binance struct {
-	Price float64 `json:"price,string"`
-}
-
-func getPrice(symbol string) (price float64, err error) {
-	log.Print(symbol)
-	resp, _ := http.Get(fmt.Sprintf("https://api.binance.com/api/v3/avgPrice?symbol=%sUSDT", symbol))
-	defer resp.Body.Close()
-
-	var jResp Binance
-
-	err = json.NewDecoder(resp.Body).Decode(&jResp)
-	if err != nil {
-		return
+func atanNumber(x1, y1, x2, y2 float64) (int, int, int) {
+	const radius float64 = 180
+	const degree, minutes, seconds int = 180, 60, 60
+	var deg, min, sec int
+	x := x2 - x1
+	y := y2 - y1
+	subtractionCoordinate := y / x
+	atanResult := math.Atan(subtractionCoordinate)
+	atanResult *= radius / math.Pi
+	deg = int(atanResult)
+	minute := (atanResult - float64(deg)) * 60
+	min = int(minute)
+	sec = int((minute - float64(min)) * 60)
+	if x < 0 && y > 0 {
+		deg = (degree - 1) + deg
+		min = (minutes - 1) + min
+		sec = seconds + sec
+	} else if x < 0 && y < 0 {
+		deg = degree + deg
+	} else if x > 0 && y < 0 {
+		deg = ((degree * 2) - 1) + deg
+		min = (minutes - 1) + min
+		sec = seconds + sec
 	}
-	return jResp.Price, nil
+	return deg, min, sec
 }
